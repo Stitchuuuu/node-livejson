@@ -1,0 +1,24 @@
+{
+  "name": "livejson",
+  "version": "1.0.0-beta.1",
+  "description": "Create JSON object from file, and watch over it so properties are always up-to-date",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Stitchuuuu/node-livejson.git"
+  },
+  "keywords": [
+    "json",
+    "file",
+    "proxy"
+  ],
+  "author": "Stitchuuuu",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/Stitchuuuu/node-livejson/issues"
+  },
+  "homepage": "https://github.com/Stitchuuuu/node-livejson#readme"
+}
