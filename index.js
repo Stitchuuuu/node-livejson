@@ -12,7 +12,16 @@ function log(...args) {
         console.log.apply(console, args)
     }
 }
-
+log.$2 = function(...args) {
+    if (module.exports.VERBOSE >= 2) {
+        log.apply(console, args)
+    }
+}
+log.$3 = function(...args) {
+    if (module.exports.VERBOSE >= 3) {
+        log.apply(console, args)
+    }
+}
 /**
  * Object corresponding to all objects in JSON
  * Returns a proxy so we know when properties are changed
@@ -26,11 +35,11 @@ class LiveJSONObjectProp {
         // The current path in the original JSON
         this.path = path
         let $this = this
-        log(`> Creating proxy for "${path}" with :`, props)
+        log.$3(`> Creating proxy for "${path}" with :`, props)
         return new Proxy(props, {
             get: function (target, name) {
                 let val
-                log(`> Accessing "${typeof name === 'symbol' ? 'symbol' : name}" (${typeof name}) in :`, target)
+                log.$3(`> Accessing "${typeof name === 'symbol' ? 'symbol' : name}" (${typeof name}) in :`, target)
                 
                 // Symbol is for NodeJS console.log / console.error
                 if (typeof name === 'symbol' && String(name) === 'Symbol(util.inspect.custom)') {
@@ -227,6 +236,16 @@ class LiveJSON extends EventEmitter {
      */
     constructor (...args) {
         super()
+        this._errorsAtStart = []
+        this._created = false
+        this.on('newListener', (name, listener) => {
+            if (name === 'error' && this._errorsAtStart.length) {
+                this._errorsAtStart.forEach((err) => {
+                    listener.apply(this, [err, err.originalError])
+                })
+                this._errorsAtStart = []
+            }
+        })
         let opts, data = {}
         if (args.length === 2) {
             if (typeof args[1] === 'object' || typeof args[1] === 'string') {
@@ -285,11 +304,11 @@ class LiveJSON extends EventEmitter {
                 // Testing JSON
                 if (!hasError) {
                     try {
+                        this.lastFileStat = fs.statSync(this.file)
                         // Overriding data with contents of file
                         data = JSON.parse(fs.readFileSync(this.file, { encoding: this.options.encoding }))
-                        this.lastFileStat = fs.statSync(this.file)
                     } catch (e) {
-                        this._error(`File ${file} couldn't be read as JSON. Error: ${e.getMessage()}`, e)
+                        this._error(`File ${file} couldn't be read as JSON. Error: ${e.message}`, e)
                     }
                 }
                 
@@ -302,11 +321,12 @@ class LiveJSON extends EventEmitter {
                             let stat = fs.statSync(this.file)
                             if (stat.mtime > this.lastFileStat.mtime) {
                                 log(`> Watch Event: ${eventType} ${filename} must reload`)
+                                this.lastFileStat = stat
                                 try {
                                     let o = JSON.parse(fs.readFileSync(this.file, { encoding: this.options.encoding }))
                                     this.set(o, true)
                                 } catch (e) {
-                                    this._error(`File ${file} couldn't be read as JSON. Error: ${e.getMessage()}`, e)
+                                    this._error(`File ${file} couldn't be read as JSON. Error: ${e.message}`, e, false)
                                 }                                
                             }
                         }
@@ -331,6 +351,7 @@ class LiveJSON extends EventEmitter {
         
         // Creating the new LiveJSONObjectProp
         this._val = new LiveJSONObjectProp(data, null, (e) => { return $this._onSet.apply($this, [e]) }, (e) => { return $this._onGet.apply($this, [e]); })
+        this._created = true
     }
     /**
      * Error func, will throw error if no error event is listened
@@ -338,14 +359,14 @@ class LiveJSON extends EventEmitter {
      * @param {*} originalError the original error (catched or not)
      */
     _error (message, originalError) {
+        let e = new Error(message)
+        e.originalError = originalError
         if (!this.listenerCount('error')) {
-            if (originalError) {
-                console.error(originalError)
+            if (!this._created) {
+                this._errorsAtStart.push(e)
             }
-            throw new Error(`${message}`)
         } else {
-            let err = new Error(message)
-            this.emit('error', err, originalError)
+            this.emit('error', e, originalError)
         }
     }
     _onGet(event) {
@@ -441,9 +462,9 @@ class LiveJSON extends EventEmitter {
         let emitPropChangeEvent = true
         var $this = this
         function SetProp(a, b, parent) {
-            log(`>> Comparing (${parent})`, a, 'and', b)
+            // log(`>> Comparing (${parent})`, a, 'and', b)
             function SetPropAtIndex(a, b, i, parent) {
-                log(`>>> Comparing ${i} in ${parent}`)
+                log.$3(`>>> Comparing ${i} in ${parent}`)
                 let hasChange = false
                 if (typeof a[i] !== typeof b[i] || Array.isArray(a[i]) !== Array.isArray(b[i])) {
                     if (typeof b[i] === 'undefined') {
@@ -454,10 +475,13 @@ class LiveJSON extends EventEmitter {
                     hasChange = true
                 } else {
                     if (typeof(a[i]) === 'object') {
-                        SetProp(a[i], b[i], i)
+                        hasChange = SetProp(a[i], b[i], i)
                     } else if (a[i] !== b[i]) {
+                        log.$2(`>>>> Changed "${i}" ! ${a[i]} > ${b[i]}`)
                         a[i] = b[i]
                         hasChange = true
+                    } else {
+                        log.$3(`>>>> Equals "${i}" ! ${a[i]} = ${b[i]}`)
                     }
                 }
                 if (hasChange && Array.isArray(a) && Array.isArray(b)) {
@@ -517,6 +541,7 @@ class LiveJSON extends EventEmitter {
         }
         let prevData = Object.assign({}, $this._data)
         let propsChanged = SetProp($this._data, obj, null)
+        log('! No changes ?', propsChanged)
         if (propsChanged) {
             this.emit('change', {
                 type: 'change',
