@@ -1,6 +1,6 @@
 {
   "name": "livejson",
-  "version": "1.0.0-beta.2",
+  "version": "1.0.0-beta.3",
   "description": "Create JSON object from file, and watch over it so properties are always up-to-date",
   "main": "index.js",
   "scripts": {
