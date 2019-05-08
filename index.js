@@ -277,7 +277,8 @@ class LiveJSON extends EventEmitter {
         this.options = options
         this.lastFileStat = false
         this._val = null
-        if (fs && this.file && !fs.existsSync(this.file)) {
+        let parent = path.dirname(this.file)
+        if (fs && this.file && module.parent && !fs.existsSync(this.file) && (parent === '.' || !fs.existsSync(parent))) {
             this.file = path.join(path.dirname(module.parent.filename), this.file)
         } else {
             this.file = path.resolve(this.file)
@@ -438,7 +439,7 @@ class LiveJSON extends EventEmitter {
             }
             log(`> Writing changes to file ${this.file}`)
             this.writing = true
-            fs.writeFile(this.file, JSON.stringify(this._data, 0, this.options.spacer), (err) => {
+            fs.writeFile(this.file, JSON.stringify(this._data, null, this.options.spacer), (err) => {
                 if (err) {
                     return this._error(`Counldn't write to file ${this.file}: ${err}`, err)
                 }
